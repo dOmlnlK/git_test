@@ -1,1 +1,6 @@
-hahahahahhahahahh
+放在linux上时 修改/home/用户/ 下单.bashrec 文件 加上
+
+python3 fortress_manage.py
+logout
+
+即可自动开启堡垒机

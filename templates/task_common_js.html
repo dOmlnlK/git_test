@@ -1,0 +1,133 @@
+<script>
+
+    function check_file_transfer_type(ele) {
+        if($(ele).val()=="get"){
+            $("#local_file_path").hide()
+        }else {
+            $("#local_file_path").show()
+        }
+    }
+
+
+    function ItemToggle(ele) {
+        $(ele).next().toggle()
+    }
+
+
+    function PostTask(ele,task_type) {
+
+
+
+        var selected_host_ids = [];
+        $("[tag='host-select']:checked").each(function () {
+            selected_host_ids.push($(this).val());
+        })
+        console.log(selected_host_ids)
+        if (selected_host_ids.length == 0) {
+            alert("必须选择主机!")
+            return false;
+        }
+
+        if (task_type=="cmd"){
+            var cmd_text = $("#cmd_input").val().trim();
+            if (cmd_text.length == 0) {
+                                          alert("必须输入要执行的命令!")
+                                          return false;
+                                          }
+            console.log("ready to post task")
+
+            var task_data = {
+                'selected_hosts': selected_host_ids,
+                'task_type': 'cmd',
+                'cmd': cmd_text,
+
+        }
+        } else {
+            var local_file_path = $("#local_file_path").val().trim();
+            var remote_file_path = $("#remote_file_path").val().trim();
+            var file_transfer_type = $("#file_transfer_type").val();
+            if (file_transfer_type == 'send') {
+                if (local_file_path.length == 0) {
+                    alert("必须输入要上传到远程服务器的本地文件路径!");
+                    return false;
+                }
+            }
+
+            if (remote_file_path.length == 0) {
+                alert("必须输入远程服务器的文件路径!");
+                return false;
+            }
+
+              var task_data = {
+                  'selected_hosts': selected_host_ids,
+                  'task_type': 'file_transfer',
+                  'file_transfer_type': file_transfer_type,
+                  'local_file_path': local_file_path,
+                  'remote_file_path': remote_file_path,
+
+        }
+        }
+
+        var csrftoken = $("input[name='csrfmiddlewaretoken']").val()
+
+        $("#task_submit_btn").addClass("disabled")
+        //每次执行命令前先清除上次记录
+        $("#task_result_container").empty()
+
+        $.post("{% url 'batch_task_mgr' %}", {
+                    'task_data': JSON.stringify(task_data),
+                    "csrfmiddlewaretoken": csrftoken
+                }, function (callback) {
+                    //callback{"id": 10, "selected_hosts_data": [{"host2remote_user__host__name": "c2", "host2remote_user__host__ip": "1.22.1.1"},]}
+                    var callback = JSON.parse(callback);
+                    $.each(callback["selected_hosts_data"], function (index, ele) {
+                        var li_ele = "<li log_id='" + ele["id"] + "'>----------HOST:" + ele["host2remote_user__host__name"] + "(" + ele["host2remote_user__host__ip"] + ")-------<span tag='log_status'></span></li>";
+                        li_ele += "<pre>等待结果返回......</pre>"
+                        $("#task_result_container").append(li_ele);
+
+
+                    })
+                    c = setInterval(function () {
+
+                        GetTaskResult(callback.task_id);
+
+                    }, 1000)
+                }
+        );//end post
+    }
+
+
+    function GetTaskResult(task_id) {
+
+        $.getJSON("{% url 'get_task_result' %}", {"task_id": task_id}, function (callback) {
+                    $.each(callback, function (index, ele) {
+                        $("li[log_id=" + ele["id"] + "]").children().first().text(ele["status"])
+                        $("li[log_id=" + ele["id"] + "]").next().text(ele["result"])
+
+                    })
+                    var task_result_alldone = true
+                    $.each($("span[tag=log_status]"), function (index, ele) {
+                        if ($(ele).text() == "0") {
+                            task_result_alldone = false
+                        }
+                    })
+
+                    console.log(task_result_alldone, ">>>>>>")
+
+                    if (task_result_alldone) {
+
+                        clearInterval(c)
+                        console.log("-------all task done------")
+                        $("#task_submit_btn").removeClass("disabled")
+
+                    }
+
+
+                }
+        ) //end get
+
+
+    }
+
+
+</script>
